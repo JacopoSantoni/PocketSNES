@@ -4,14 +4,23 @@
 extern "C" int mainEntry(int argc, char** argv);
 
 using namespace std;
+using namespace gcw;
+
+enum KeyShiftAmount : u8
+{
+  KEY_A_SHIFT = 0,
+  KEY_B_SHIFT = 1,
+  KEY_X_SHIFT = 2,
+  KEY_Y_SHIFT = 3
+};
 
 class PocketSnesEmulator : public CoreInterface
 {
-	private:
+  private:
 
-	public:
-		PocketSnesEmulator()
-		{
+  public:
+    PocketSnesEmulator()
+    {
       registerInformations(CONSOLE_SUPER_NINTENDO, "pocketsnes", "PocketSNES", "1.0");
       registerExtension("smc");
       
@@ -28,9 +37,17 @@ class PocketSnesEmulator : public CoreInterface
       
       registerSetting(new BoolSetting("Transparency", "transparency", false));
       registerSetting(new BoolSetting("Show FPS", "show-fps", false));
-		}
+      
+      
+      registerButton(ButtonSetting("A", GCWKEY_A, KEY_A_SHIFT));
+      registerButton(ButtonSetting("B", GCWKEY_B, KEY_B_SHIFT));
+      registerButton(ButtonSetting("X", GCWKEY_X, KEY_X_SHIFT));
+      registerButton(ButtonSetting("Y", GCWKEY_Y, KEY_Y_SHIFT));
+    }
 
-		virtual void run(int argc, char **argv) { mainEntry(argc, argv); }
+    virtual void run(int argc, char **argv) { /*mainEntry(argc, argv);*/ }
+  
+    virtual void setButtonStatus(ButtonStatus) { /* whatever */ }
 };
 
 static PocketSnesEmulator emulator;
