@@ -1,6 +1,6 @@
 PocketSNES, Super Nintendo Entertainment System emulator
 
-- Based on Snes9x core version 1.43-dev, 2014-01-01 -
+- Based on Snes9x core version 1.43+SDD1, 2014-08-21 -
 
 == Table of contents ==
 1. The PocketSNES Main Menu
@@ -30,16 +30,16 @@ PocketSNES, Super Nintendo Entertainment System emulator
 == The PocketSNES Main Menu ==
 After activating the PocketSNES icon, the PocketSNES Main Menu will appear. From there, you can set global settings and save them even before launching your first game, if needed. Once done changing settings, choose the "Save global settings" option and proceed to selecting a ROM.
 
-To re-enter the Main Menu during a game, flick the Power switch.
+To re-enter the Main Menu during a game, flick the Power switch upwards, or press the Start and Select buttons at once. (The first button will also be sent to the game before the Main Menu appears.)
 
 == Selecting a ROM ==
-The second option in the menu, "Select ROM", brings up a directory browser. This is PocketSNES's own directory browser; it does not use gmenu2x's settings. You can set its default directory for use during future runs. You can use this directory browser to select a ROM to emulate. It accepts any valid SNES ROM file, headered or not, with copier interleaving or not (though un-interleaved dumps are preferred) and with the extension .sfc or .smc, or any ZIP archive containing a valid SNES ROM as its first file.
+The second option in the menu, "Select ROM", brings up a directory browser. This is PocketSNES's own directory browser; it does not use gmenu2x's settings. You can set its default directory for use during future runs. You can use this directory browser to select a ROM to emulate. It accepts any valid SNES ROM file, headered or not, with copier interleaving or not (though un-interleaved dumps are preferred) and with the extension .sfc, .smc or .fig, or any ZIP archive containing a valid SNES ROM as its first file.
 
 - Returning to the parent directory -
 Pressing B exits the directory browser entirely. To return to the parent directory, use the <..> (two dots) entry near the top of the direcctory browser.
 
 - Setting the default ROM path -
-Once you're in the directory you wish to set as the default ROM path for future runs of PocketSNES, use the "Save default directory" option at the top of the directory browser. If this directory does not exist when you launch PocketSNES again, it may show you nothing, not even a way to return to your Linux home directory. In that case, you may need to delete the file containing the default ROM path. See 'Files' for more information. 
+Once you're in the directory you wish to set as the default ROM path for future runs of PocketSNES, use the "Save default directory" option at the top of the directory browser.
 
 == Playing a game ==
 While playing a game, the default button bindings allow the use of everything on your device that has the same position as on the Super Nintendo Entertainment System controller. Your device's D-pad controls the SNES's D-pad; its A, B, L, R, Start and Select buttons controls the SNES's A, B, L, R, Start and Select buttons.
@@ -65,7 +65,7 @@ The "Save SRAM" option allows you to request immediate saving of the SRAM to a f
 - Save SRAM when Changed -
 The "Save SRAM when changed" option allows you to request saving of the SRAM to a file 1 second after the current game writes to it. In some games which use SRAM to store their level state, such as Kirby Super Star, enabling this option may cause severe slowdowns. If you wish, make a per-game override of this option to disable it in that case.
 
-The default value of this option is OFF. Regardless of the value of this option, save RAM is written when properly exiting the emulator with the "Exit PocketSNES" option and when switching to a different ROM.
+The default value of this option is ON. Regardless of the value of this option, save RAM is written when properly exiting the emulator with the "Exit PocketSNES" option and when switching to a different ROM.
 
 - Sound -
 Produces or mutes sound. Does not affect the emulation of the SNES APU, but does speed up emulation as a whole if disabled because synthesising the sound can be CPU-expensive.
@@ -81,7 +81,7 @@ The default value of this option is 44100 Hz.
 The default value of this option is AUTO.
 
 - Full Screen -
-"OFF" shows the SNES screen with square pixels (256x224; PAR 1:1, DAR 8:7). "FAST" and "SMOOTH" show the SNES screen scaled up to the resolution of your device (320x240; PAR 7:6, DAR 4:3), with 'SMOOTH' resembling bilinear interpolation performed in software. NTSC TVs on the market at the time the SNES was popular would show the image with a display aspect ratio (DAR) of 4:3, agreeing with the implementation of full-screen scaling on 4:3 devices.
+"OFF" shows the SNES screen with square pixels (256x224; PAR 1:1, DAR 8:7). "FAST" and "SMOOTH" show the SNES screen scaled up to the resolution of your device (320x240; PAR 7:6, DAR 4:3), with 'SMOOTH' resembling bilinear interpolation performed in software. NTSC TVs on the market at the time the SNES was popular would show the image with a display aspect ratio (DAR) of 4:3, agreeing with the implementation of full-screen scaling on 4:3 devices. 'HARDWARE' leaves scaling up to dedicated hardware on the GCW Zero.
 
 The default value of this option is OFF.
 

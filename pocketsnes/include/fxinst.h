@@ -246,10 +246,6 @@ struct FxRegs_s
     int32	vErrorCode;
     uint32	vIllegalAddress;
     
-    uint8	bBreakPoint;
-    uint32	vBreakPoint;
-    uint32	vStepPoint;
-    
     uint8 *	pvRegisters;	/* 768 bytes located in the memory at address 0x3000 */
     uint32	nRamBanks;	/* Number of 64kb-banks in FxRam (Don't confuse it with SNES-Ram!!!) */
     uint8 *	pvRam;		/* Pointer to FxRam */
@@ -265,8 +261,6 @@ struct FxRegs_s
     uint32	vScreenRealHeight;	/* 128, 160, 192 or 256 */
     uint32	vPrevScreenHeight;
     uint32	vScreenSize;
-    void	(*pfPlot)();
-    void	(*pfRpix)();
     
     uint8 *	pvRamBank;		/* Pointer to current RAM-bank */
     uint8 *	pvRomBank;		/* Pointer to current ROM-bank */
@@ -278,17 +272,15 @@ struct FxRegs_s
     uint8	bCacheActive;
     uint8 *	pvCache;		/* Pointer to the GSU cache */
     uint8 	avCacheBackup[512];	/* Backup of ROM when the cache has replaced it */
-    uint32	vCounter;
-    uint32	vInstCount;
     uint32	vSCBRDirty;		/* if SCBR is written, our cached screen pointers need updating */
 };
 
 #define  FxRegs_s_null { \
-   {0},    0,      0,      0,      0,   0,    0,   0,    0,    0, \
-  NULL, NULL,      0,      0,      0,   0,    0,   0,    0,    0, \
-     0,    0,      0,      0,   NULL,   0, NULL,   0, NULL,    0, \
-     0, NULL, {NULL},    {0},      0,   0,    0,   0, NULL, NULL, \
-  NULL, NULL,   NULL, {NULL}, {NULL},   0, NULL, {0},    0,    0, \
+   {0},    0,   0,    0, 0,    0,    0,    0,      0,      0, \
+  NULL, NULL,   0,    0, 0,    0,    0,    0,      0,      0, \
+     0, NULL,   0, NULL, 0, NULL,    0,    0,   NULL, {NULL}, \
+   {0},    0,   0,    0, 0, NULL, NULL, NULL, {NULL}, {NULL}, \
+     0, NULL, {0},    0, \
 }
 
 /* GSU registers */
@@ -442,30 +434,10 @@ struct FxRegs_s
 #define CFGR USEX8(GSU.pvRegisters[GSU_CFGR])
 #define CLSR USEX8(GSU.pvRegisters[GSU_CLSR])
 
-/* Execute instruction from the pipe, and fetch next byte to the pipe */
-#define FX_STEP { uint32 vOpcode = (uint32)PIPE; FETCHPIPE; \
-(*fx_ppfOpcodeTable[ (GSU.vStatusReg & 0x300) | vOpcode ])(); } \
+extern void fx_run(uint32 nInstructions);
 
-#define FX_FUNCTION_RUN			0
-#define FX_FUNCTION_RUN_TO_BREAKPOINT	1
-#define FX_FUNCTION_STEP_OVER		2
-
-extern uint32 (**fx_ppfFunctionTable)(uint32);
-extern void (**fx_ppfPlotTable)();
-extern void (**fx_ppfOpcodeTable)();
-
-extern uint32 (*fx_apfFunctionTable[])(uint32);
 extern void (*fx_apfOpcodeTable[])();
 extern void (*fx_apfPlotTable[])();
-extern uint32 (*fx_a_apfFunctionTable[])(uint32);
-extern void (*fx_a_apfOpcodeTable[])();
-extern void (*fx_a_apfPlotTable[])();
-extern uint32 (*fx_r_apfFunctionTable[])(uint32);
-extern void (*fx_r_apfOpcodeTable[])();
-extern void (*fx_r_apfPlotTable[])();
-extern uint32 (*fx_ar_apfFunctionTable[])(uint32);
-extern void (*fx_ar_apfOpcodeTable[])();
-extern void (*fx_ar_apfPlotTable[])();
 
 /* Set this define if branches are relative to the instruction in the delay slot */
 /* (I think they are) */

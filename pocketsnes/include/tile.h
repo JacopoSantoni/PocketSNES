@@ -125,70 +125,67 @@
 	bp = pCache + StartLine; \
 	for (l = LineCount; l != 0; l--, bp += 8, Offset += GFX.PPL) \
 	{ \
-	    if (*(uint32 *) bp) \
-		NORMAL (Offset, bp, ScreenColors); \
-	    if (*(uint32 *) (bp + 4)) \
-		NORMAL (Offset + N, bp + 4, ScreenColors); \
+	    NORMAL (Offset, bp, ScreenColors); \
+	    NORMAL (Offset + N, bp + 4, ScreenColors); \
 	} \
         break; \
     case H_FLIP: \
 	bp = pCache + StartLine; \
 	for (l = LineCount; l != 0; l--, bp += 8, Offset += GFX.PPL) \
 	{ \
-	    if (*(uint32 *) (bp + 4)) \
-		FLIPPED (Offset, bp + 4, ScreenColors); \
-	    if (*(uint32 *) bp) \
-		FLIPPED (Offset + N, bp, ScreenColors); \
+	    FLIPPED (Offset, bp + 4, ScreenColors); \
+	    FLIPPED (Offset + N, bp, ScreenColors); \
 	} \
         break; \
     case H_FLIP | V_FLIP: \
 	bp = pCache + 56 - StartLine; \
 	for (l = LineCount; l != 0; l--, bp -= 8, Offset += GFX.PPL) \
 	{ \
-	    if (*(uint32 *) (bp + 4)) \
-		FLIPPED (Offset, bp + 4, ScreenColors); \
-	    if (*(uint32 *) bp) \
-		FLIPPED (Offset + N, bp, ScreenColors); \
+	    FLIPPED (Offset, bp + 4, ScreenColors); \
+	    FLIPPED (Offset + N, bp, ScreenColors); \
 	} \
         break; \
     case V_FLIP: \
 	bp = pCache + 56 - StartLine; \
 	for (l = LineCount; l != 0; l--, bp -= 8, Offset += GFX.PPL) \
 	{ \
-	    if (*(uint32 *) bp) \
-		NORMAL (Offset, bp, ScreenColors); \
-	    if (*(uint32 *) (bp + 4)) \
-		NORMAL (Offset + N, bp + 4, ScreenColors); \
+	    NORMAL (Offset, bp, ScreenColors); \
+	    NORMAL (Offset + N, bp + 4, ScreenColors); \
 	} \
         break; \
     default: \
         break; \
     }
 
+#ifdef LSB_FIRST
+
+#define RIGHT_BYTES_EXCEPT(Count) (0xFFFFFFFFU << ((Count) * 8))
+#define LEFT_BYTES(Count)         ((1 << ((Count) * 8)) - 1)
+
+#else
+
+#define RIGHT_BYTES_EXCEPT(Count) ((1 << ((4 - (Count)) * 8)) - 1)
+#define LEFT_BYTES(Count)         (0xFFFFFFFFU << ((4 - (Count)) * 8))
+
+#endif
+
 #define TILE_CLIP_PREAMBLE \
-    uint32 d1; \
-    uint32 d2; \
-\
-    if (StartPixel < 4) \
-    { \
-	d1 = HeadMask [StartPixel]; \
-	if (StartPixel + Width < 4) \
-	    d1 &= TailMask [StartPixel + Width]; \
-    } \
-    else \
-	d1 = 0; \
-\
-    if (StartPixel + Width > 4) \
-    { \
+	uint32 d1 = StartPixel         >= 4 ? 0x00000000 : 0xFFFFFFFF; \
+	uint32 d2 = StartPixel + Width <= 4 ? 0x00000000 : 0xFFFFFFFF; \
+	\
 	if (StartPixel > 4) \
-	    d2 = HeadMask [StartPixel - 4]; \
-	else \
-	    d2 = 0xffffffff; \
-\
-	d2 &= TailMask [(StartPixel + Width - 4)]; \
-    } \
-    else \
-	d2 = 0;
+		/* . . . . | . ? ? ? */ \
+		d2 = RIGHT_BYTES_EXCEPT(StartPixel - 4); \
+	else if (StartPixel > 0 && StartPixel < 4) \
+		/* . ? ? ? | ? ? ? ? */ \
+		d1 = RIGHT_BYTES_EXCEPT(StartPixel); \
+	\
+	if (StartPixel + Width < 4) \
+		/* ? ? ? . | . . . . */ \
+		d1 &= LEFT_BYTES(StartPixel + Width); \
+	else if (StartPixel + Width > 4 && StartPixel + Width < 8) \
+		/* ? ? ? ? | ? ? ? . */ \
+		d2 &= LEFT_BYTES(StartPixel + Width - 4);
 
 #define RENDER_CLIPPED_TILE(NORMAL, FLIPPED, N) \
     uint32 dd; \

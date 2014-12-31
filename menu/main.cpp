@@ -142,6 +142,7 @@ void S9xLoadSDD1Data (void)
 }
 
 u16 IntermediateScreen[SNES_WIDTH * SNES_HEIGHT_EXTENDED];
+bool LastPAL; /* Whether the last frame's height was 239 (true) or 224. */
 
 bool8_32 S9xInitUpdate ()
 {
@@ -163,24 +164,49 @@ bool8_32 S9xDeinitUpdate (int Width, int Height, bool8_32)
 		mFramesCleared++;
 	}
 
-	if (mMenuOptions.fullScreen == 1)
+	// If the height changed from 224 to 239, or from 239 to 224,
+	// possibly change the resolution.
+	bool PAL = !!(Memory.FillRAM[0x2133] & 4);
+	if (PAL != LastPAL)
 	{
-		upscale_p((uint32_t*) sal_VideoGetBuffer(), (uint32_t*) IntermediateScreen, SNES_WIDTH);
+		sal_VideoSetPAL(mMenuOptions.fullScreen, PAL);
+		LastPAL = PAL;
 	}
-	if (mMenuOptions.fullScreen == 2)
+
+	switch (mMenuOptions.fullScreen)
 	{
-		upscale_256x224_to_320x240_bilinearish((uint32_t*) sal_VideoGetBuffer() + 160, (uint32_t*) IntermediateScreen, SNES_WIDTH);
-	}
-	if (mMenuOptions.fullScreen == 0)
-	{
-		u32 y, pitch = sal_VideoGetPitch();
-		u8 *src = (u8*) IntermediateScreen, *dst = (u8*) sal_VideoGetBuffer() + ((SAL_SCREEN_WIDTH - SNES_WIDTH) / 2 + (((SAL_SCREEN_HEIGHT - SNES_HEIGHT) / 2) * SAL_SCREEN_WIDTH)) * sizeof(u16);
-		for (y = 0; y < SNES_HEIGHT; y++)
+		case 0: /* No scaling */
+		case 3: /* Hardware scaling */
 		{
-			memcpy(dst, src, SNES_WIDTH * sizeof(u16));
-			src += SNES_WIDTH * sizeof(u16);
-			dst += pitch;
+			u32 h = PAL ? SNES_HEIGHT_EXTENDED : SNES_HEIGHT;
+			u32 y, pitch = sal_VideoGetPitch();
+			u8 *src = (u8*) IntermediateScreen, *dst = (u8*) sal_VideoGetBuffer()
+				+ ((sal_VideoGetWidth() - SNES_WIDTH) / 2) * sizeof(u16)
+				+ ((sal_VideoGetHeight() - h) / 2) * pitch;
+			for (y = 0; y < h; y++)
+			{
+				memcpy(dst, src, SNES_WIDTH * sizeof(u16));
+				src += SNES_WIDTH * sizeof(u16);
+				dst += pitch;
+			}
+			break;
 		}
+
+		case 1: /* Fast software scaling */
+			if (PAL) {
+				upscale_256x240_to_320x240((uint32_t*) sal_VideoGetBuffer(), (uint32_t*) IntermediateScreen, SNES_WIDTH);
+			} else {
+				upscale_p((uint32_t*) sal_VideoGetBuffer(), (uint32_t*) IntermediateScreen, SNES_WIDTH);
+			}
+			break;
+
+		case 2: /* Smooth software scaling */
+			if (PAL) {
+				upscale_256x240_to_320x240_bilinearish((uint32_t*) sal_VideoGetBuffer() + 160, (uint32_t*) IntermediateScreen, SNES_WIDTH);
+			} else {
+				upscale_256x224_to_320x240_bilinearish((uint32_t*) sal_VideoGetBuffer() + 160, (uint32_t*) IntermediateScreen, SNES_WIDTH);
+			}
+			break;
 	}
 
 	u32 newTimer;
@@ -191,11 +217,11 @@ bool8_32 S9xDeinitUpdate (int Width, int Height, bool8_32)
 		if(newTimer-mLastTimer>Memory.ROMFramesPerSecond)
 		{
 			mLastTimer=newTimer;
-			sprintf(mFpsDisplay,"FPS: %d / %d", mFps, Memory.ROMFramesPerSecond);
+			sprintf(mFpsDisplay,"%2d/%2d", mFps, Memory.ROMFramesPerSecond);
 			mFps=0;
 		}
 		
-		sal_VideoDrawRect(0,0,13*8,8,SAL_RGB(0,0,0));
+		sal_VideoDrawRect(0,0,5*8,8,SAL_RGB(0,0,0));
 		sal_VideoPrint(0,0,mFpsDisplay,SAL_RGB(31,31,31));
 	}
 
@@ -236,7 +262,8 @@ uint32 S9xReadJoypad (int which1)
 
 	u32 joy = sal_InputPoll();
 	
-	if (joy & SAL_INPUT_MENU)
+	if (((joy & SAL_INPUT_SELECT) && (joy & SAL_INPUT_START))
+	 || (joy & SAL_INPUT_MENU))
 	{
 		mEnterMenu = 1;		
 		return val;
@@ -309,9 +336,41 @@ const char *S9xGetFilenameInc (const char *e)
      return e;
 }
 
+#define MAX_AUDIO_FRAMESKIP 5
+
 void S9xSyncSpeed(void)
 {
-      //S9xMessage (0,0,"sync speed");
+	if (IsPreviewingState())
+		return;
+
+	if (Settings.SkipFrames == AUTO_FRAMERATE)
+	{
+		if (sal_AudioGetFramesBuffered() < sal_AudioGetMinFrames()
+		 && ++IPPU.SkippedFrames < MAX_AUDIO_FRAMESKIP)
+		{
+			IPPU.RenderThisFrame = FALSE;
+		}
+		else
+		{
+			IPPU.RenderThisFrame = TRUE;
+			IPPU.SkippedFrames = 0;
+		}
+	}
+	else
+	{
+		if (++IPPU.SkippedFrames >= Settings.SkipFrames + 1)
+		{
+			IPPU.RenderThisFrame = TRUE;
+			IPPU.SkippedFrames = 0;
+		}
+		else
+		{
+			IPPU.RenderThisFrame = FALSE;
+		}
+	}
+
+	while (sal_AudioGetFramesBuffered() >= sal_AudioGetMaxFrames())
+		usleep(1000);
 }
 
 const char *S9xBasename (const char *f)
@@ -374,15 +433,20 @@ void S9xLoadSRAM (void)
 
 static u32 LastAudioRate = 0;
 static u32 LastStereo = 0;
+static u32 LastHz = 0;
 
 static
 int Run(int sound)
 {
-  	int skip=0, done=0, doneLast=0,aim=0,i;
-	Settings.NextAPUEnabled = Settings.APUEnabled = sound;
+  	int i;
+	bool PAL = !!(Memory.FillRAM[0x2133] & 4);
+
+	sal_VideoEnterGame(mMenuOptions.fullScreen, PAL, Memory.ROMFramesPerSecond);
+	LastPAL = PAL;
+
 	Settings.SoundSync = mMenuOptions.soundSync;
+	Settings.SkipFrames = mMenuOptions.frameSkip == 0 ? AUTO_FRAMERATE : mMenuOptions.frameSkip - 1;
 	sal_TimerInit(Settings.FrameTime);
-	done=sal_TimerRead()-1;
 
 	if (sound) {
 		/*
@@ -393,7 +457,7 @@ int Run(int sound)
 		Settings.SixteenBitSound=true;
 #endif
 
-		if (LastAudioRate != mMenuOptions.soundRate || LastStereo != mMenuOptions.stereo)
+		if (LastAudioRate != mMenuOptions.soundRate || LastStereo != mMenuOptions.stereo || LastHz != Memory.ROMFramesPerSecond)
 		{
 			if (LastAudioRate != 0)
 			{
@@ -406,40 +470,30 @@ int Run(int sound)
 						mMenuOptions.stereo, sal_AudioGetSamplesPerFrame() * sal_AudioGetBytesPerSample());
 			S9xSetPlaybackRate(mMenuOptions.soundRate);
 			LastAudioRate = mMenuOptions.soundRate;
+			LastStereo = mMenuOptions.stereo;
+			LastHz = Memory.ROMFramesPerSecond;
 		}
-		S9xSetSoundMute (FALSE);
-		sal_AudioResume();
+		sal_AudioSetMuted(0);
 
 	} else {
-		S9xSetSoundMute (TRUE);
+		sal_AudioSetMuted(1);
 	}
+	sal_AudioResume();
 
   	while(!mEnterMenu) 
   	{
-		for (i=0;i<10;i++)
-		{
-			aim=sal_TimerRead();
-			if (done < aim)
-			{
-				done++;
-				if (mMenuOptions.frameSkip == 0) //Auto
-					IPPU.RenderThisFrame = (done >= aim);
-				else if ((IPPU.RenderThisFrame = (--skip <= 0)))
-					skip = mMenuOptions.frameSkip;
+		//Run SNES for one glorious frame
+		S9xMainLoop ();
 
-				//Run SNES for one glorious frame
-				S9xMainLoop ();
-
-				sal_AudioGenerate(sal_AudioGetSamplesPerFrame() - SamplesDoneThisFrame);
-			}
-			if (done>=aim) break; // Up to date now
-			if (mEnterMenu) break;
-		}
-		done=aim; // Make sure up to date
+		if (SamplesDoneThisFrame < sal_AudioGetSamplesPerFrame())
+			sal_AudioGenerate(sal_AudioGetSamplesPerFrame() - SamplesDoneThisFrame);
+		SamplesDoneThisFrame = 0;
+		so.err_counter = 0;
   	}
 
-	if (sound)
-		sal_AudioPause();
+	sal_AudioPause();
+
+	sal_VideoExitGame();
 
 	mEnterMenu=0;
 	return mEnterMenu;
@@ -490,7 +544,7 @@ int SnesInit()
 	Settings.SoundBufferSize = 0;
 	Settings.CyclesPercentage = 100;
 	Settings.DisableSoundEcho = FALSE;
-	Settings.APUEnabled = TRUE;
+	Settings.APUEnabled = Settings.NextAPUEnabled = TRUE;
 	Settings.H_Max = SNES_CYCLES_PER_SCANLINE;
 	Settings.SkipFrames = AUTO_FRAMERATE;
 	Settings.Shutdown = Settings.ShutdownMaster = TRUE;
@@ -642,7 +696,7 @@ int mainEntry(int argc, char* argv[])
 	s32 event=EVENT_NONE;
 
 	sal_Init();
-	sal_VideoInit(16,SAL_RGB(0,0,0),Memory.ROMFramesPerSecond);
+	sal_VideoInit(16);
 
 	mRomName[0]=0;
 	if (argc >= 2) 
@@ -691,14 +745,6 @@ int mainEntry(int argc, char* argv[])
 
 		if(event==EVENT_RUN_ROM)
 		{
-			if(mMenuOptions.fullScreen)
-			{
-				sal_VideoSetScaling(SNES_WIDTH,SNES_HEIGHT);
-			}
-
-			if(mMenuOptions.transparency)	Settings.Transparency = TRUE;
-			else Settings.Transparency = FALSE;
-
 			sal_AudioSetVolume(mMenuOptions.volume,mMenuOptions.volume);
 			sal_CpuSpeedSet(mMenuOptions.cpuSpeed);	
 			mFramesCleared = 0;

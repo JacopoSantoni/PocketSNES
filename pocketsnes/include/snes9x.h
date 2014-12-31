@@ -89,7 +89,7 @@
 #ifndef _SNES9X_H_
 #define _SNES9X_H_
 
-#define VERSION "1.43-dev"
+#define VERSION "1.43+SDD1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -394,7 +394,6 @@ struct SSettings{
 	uint16 DisplayColor;
     int    SoundDriver;
     int    AIDOShmId;
-    bool8  SDD1Pack;
 	bool8  NoPatch;
 	bool8  ForceInterleaveGD24;
 #ifdef DEBUG_MAXCOUNT
